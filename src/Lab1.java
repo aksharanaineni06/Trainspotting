@@ -8,18 +8,17 @@ public class Lab1 {
   private static Semaphore[] sem = new Semaphore[11];
 
   public Lab1(int speed1, int speed2) {
-    ///declare semaphores on section 1 trough 10
-    sem[0] = new Semaphore(1);
-    sem[1] = new Semaphore(1);
-    sem[2] = new Semaphore(1);
-    sem[3] = new Semaphore(1);
-    sem[4] = new Semaphore(1);
-    sem[5] = new Semaphore(1);
-    sem[6] = new Semaphore(1);
-    sem[7] = new Semaphore(1);
-    sem[8] = new Semaphore(1);
-    sem[9] = new Semaphore(1);
-    sem[10] = new Semaphore(1);
+    ///declare all semaphores on section 1 trough 10
+    sem[0] = new Semaphore(1);//cross section
+    sem[1] = new Semaphore(1);//section 1 and 3
+    sem[2] = new Semaphore(1);//aection 2 and 4
+   
+    sem[5] = new Semaphore(1);//critical section 5
+    sem[6] = new Semaphore(1);//section 6
+   
+    sem[8] = new Semaphore(1);//critical section 8
+    sem[9] = new Semaphore(1);//section 9
+   
 
     new Thread(new Train(1, speed1, true), "Train-1").start();
     new Thread(new Train(2, speed2, false), "Train-2").start();
@@ -71,8 +70,8 @@ public class Lab1 {
           }
 
           // -------- Switch + track rules --------
-          //cross section
-          
+         
+         
           //track 1
           if (x == 16 && y == 7) {
             if (goingDown) sem[1].release();
@@ -104,9 +103,10 @@ public class Lab1 {
             if (goingDown) {
               sem[5].tryAcquire();
               if (sem[6].tryAcquire()) {
+                System.out.println("- going to track 6");
                 tsi.setSwitch(15, 9, TSimInterface.SWITCH_RIGHT);
               } else {
-                sem[7].tryAcquire();
+                System.out.println("- 6 busy, going to track 7");
                 tsi.setSwitch(15, 9, TSimInterface.SWITCH_LEFT);
               }
             } else sem[5].release();
@@ -129,7 +129,7 @@ public class Lab1 {
             if (goingDown) sem[6].tryAcquire();
             else sem[6].release();
           }
-          
+         
           if (x == 10 && y == 9) {
             if (goingDown) {
               trackCheck(tsi, 8);
@@ -144,12 +144,8 @@ public class Lab1 {
             if (goingDown) sem[6].release();
             else sem[6].tryAcquire();
           }
-          //track 10
-          if (x == 14 && y == 10) {
-            if (goingDown) sem[7].tryAcquire();
-            else sem[7].release();
-          }
-
+         
+          //track 7
           if (x == 10 && y == 10) {
             if (goingDown) {
               trackCheck(tsi, 8);
@@ -160,23 +156,21 @@ public class Lab1 {
             }
           }
 
-          if (x == 5 && y == 10) {
-            if (goingDown) sem[7].release();
-            else sem[7].tryAcquire();
-          }
+         
           //track 8
           if (x == 3 && y == 9) {
             if (goingDown) {
               if (sem[9].tryAcquire()) tsi.setSwitch(3, 11, TSimInterface.SWITCH_LEFT);
               else tsi.setSwitch(3, 11, TSimInterface.SWITCH_RIGHT);
-            } else sem[8].release();
+            }
+            else sem[8].release();
           }
 
           if (x == 2 && y == 11) {
             if (goingDown) sem[8].release();
             else {
-              if (sem[6].tryAcquire()) tsi.setSwitch(15, 9, TSimInterface.SWITCH_RIGHT);
-              else tsi.setSwitch(15, 9, TSimInterface.SWITCH_LEFT);
+              if (sem[6].tryAcquire()) tsi.setSwitch(4, 9, TSimInterface.SWITCH_LEFT);
+              else tsi.setSwitch(4, 9, TSimInterface.SWITCH_RIGHT);
             }
           }
           //track 9
@@ -190,10 +184,9 @@ public class Lab1 {
           }
           //track 10
           if (x == 4 && y == 13) {
-            if (goingDown) sem[10].tryAcquire();
+            if (goingDown) break;
             else {
               trackCheck(tsi, 8);
-              sem[10].release();
               tsi.setSwitch(3, 11, TSimInterface.SWITCH_RIGHT);
             }
           }
@@ -207,25 +200,32 @@ public class Lab1 {
       }
     }
 
-    private void stopDwellReverse(TSimInterface tsi) throws CommandException {
+    private void stopDwellReverse(TSimInterface tsi) throws CommandException { //stops, waits and turns around at stations
       try {
-        tsi.setSpeed(id, 0);
-        Thread.sleep(2000); // dwell
-        dir = -dir;
-        goingDown = !goingDown;
-        tsi.setSpeed(id, dir * speed);
+        tsi.setSpeed(id, 0); //stop train
+        Thread.sleep(2000); // dwell 2s
+        dir = -dir; //changing direction
+        goingDown = !goingDown; //updating variable keeping track of overall direction
+        tsi.setSpeed(id, dir * speed); //starts train again
       } catch (InterruptedException ie) {
         Thread.currentThread().interrupt();
       }
     }
 
-    private void trackCheck(TSimInterface tsi, int num) {
+    private void trackCheck(TSimInterface tsi, int num) { //checks upcoming track for avalability
       try {
-        if (!sem[num].tryAcquire()) {
+        System.out.println("- trackcheck " + num + " :train " + id);
+        if (sem[num].tryAcquire() == false) { //track is busy, train stops and waits until available
           tsi.setSpeed(id, 0);
-          sem[num].acquire();
-          Thread.sleep(3000);
-          tsi.setSpeed(id, dir * speed);
+          System.out.println("- waiting on track " + num);
+          sem[num].acquire(); //makes train wait until able to acquire needed semaphore for upcoming track
+          System.out.println("- track " + num + " acquired by train " + id);
+          Thread.sleep(3000); //lets the other train have a margin for passing by
+          System.out.println("- going to track " + num);
+          tsi.setSpeed(id, dir * speed); //train starts again
+        }
+        else {
+            System.out.println("- acquired immediately track " + num); //if track not busy then the train goes straight on
         }
       } catch (CommandException | InterruptedException e) {
         e.printStackTrace();
